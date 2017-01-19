@@ -3,96 +3,52 @@
 import os
 import sys
 import argparse
+import re
+
+# handle input arguments neatly
+parser = argparse.ArgumentParser()
+parser.add_argument('nc', type=str, help='Path to input GCode')
+parser.add_argument('-o', type=str, default=None, help='Path to output GCode')
+parser.add_argument('-x0', type=float, default=0.0, help="New x origin")
+parser.add_argument('-y0', type=float, default=0.0, help="New y origin")
+parser.add_argument('-x', type=float, default=0.0, help="Initial x position")
+parser.add_argument('-y', type=float, default=0.0, help="Initial y origin")
+args = parser.parse_args()
 
 
-def findkey(lines, line):
-    codekey = lines[line].find('G')
-    if codekey == -1:
-        codekey = findkey(lines, line + 1)
-    return codekey
+def getString(cmd, x, y):
+    return "{0:s} X{1:-.4f} Y{2:-.4f} A{1:-.4f} B{2:-.4f}\r\n".format(cmd, x - args.x0, y - args.y0)
 
+# start output stringlist
+x = args.x
+y = args.y
+output = ["%\r\n"]
+output.append(getString("G92", x, y))
 
-def openfile(filename):
-    print 'Opening ', filename
-    ocode = open(filename, 'r')
-    lines = ocode.readlines()
-    codekey = findkey(lines, 0)
-    coords = []
-    for line in lines:
-        if line[codekey:codekey + 2] == 'G0':
-            line = line[0:codekey - 1] + line[codekey + 3:]
-            coords.append(line[0:len(line) - 1])
-        elif line[codekey:codekey + 1] == 'X' or line[codekey:codekey + 1] == 'Y':
-            coords.append(line[0:-1])
-    ocode.close()
-    return(coords)
+# convert file into coordinates
+with open(args.nc, "r") as infile:
+    line = infile.readline()
+    while (line):
+        # find x or y coordinates
+        newcoord = False
+        xstr = re.findall("X[0-9\.-]+", line)
+        if xstr:
+            x = float(xstr[0][1:])
+            newcoord = True
+        ystr = re.findall("Y[0-9\.-]+", line)
+        if ystr:
+            y = float(ystr[0][1:])
+            newcoord = True
 
+        # add a new line to output if coordinates changed
+        if newcoord and not re.findall("G0 ", line):
+            output.append(getString("G01", x, y))
+        line = infile.readline()
 
-def double(coords, neworigin):
-    xp = '0.00000'
-    yp = '0.00000'
-    for i in range(len(coords)):
-        line = coords[i]
-        xi = line.find('X')
-        yi = line.find('Y')
-        ii = line.find('I')
-        ji = line.find('J')
-        if ii > -1 or ji > -1:
-            print "Warning: Invalid arc found on line {0}. Converted to line".format(i)
-            line_trunc = 0
-            if ii == -1:
-                line_trunc = -(len(line) - ji)
-            elif ji == -1:
-                line_trunc = -(len(line) - ii)
-            elif ii < ji:
-                line_trunc = -(len(line) - ii)
-            else:
-                line_trunc = -(len(line) - ji)
-            line = line[:line_trunc]
-        beg = 0
-        if xi != -1:
-            beg = xi
-            if yi != -1:
-                x = line[xi + 1:yi - 1]
-                y = line[yi + 1:]
-            else:
-                x = line[xi + 1:]
-                y = yp
-        else:
-            beg = yi
-            if yi != -1:
-                y = line[yi + 1:]
-                x = xp
-        line = line[0:beg] + 'G01' + ' X' + str(float(x) - neworigin[0]) + \
-            ' Y' + str(float(y) - neworigin[1]) + ' A' + str(
-                float(x) - neworigin[0]) + ' B' + str(float(y) - neworigin[1])
-        xp = x
-        yp = y
-        coords[i] = line
-    return coords
-
-
-def writefile(coords, filename):
-    output = open(filename + '.txt', 'w')
-    output.write('%\n')
-    output.write('N00000 G92 G70 X0 Y0 A0 B0\n')
-    for line in coords:
-        output.write(line + '\n')
-    output.write('N99999 M02')
-    output.close()
-
-if __name__ == '__main__':
-    print len(sys.argv)
-    if len(sys.argv) <= 1:
-        print "Not enough arguments given!"
-        sys.exit(1)
-    if len(sys.argv) == 4:
-        x = float(sys.argv[2])
-        y = float(sys.argv[3])
-    else:
-        x = 0
-        y = 0
-    filename = sys.argv[1]
-    coords = openfile(filename)
-    coords = double(coords, [x, y])
-    writefile(coords, filename)
+# write output
+filename = args.o
+if not filename:
+    filename = args.nc + ".txt"
+with open(filename, "w") as outfile:
+    for line in output:
+        outfile.write(line)
