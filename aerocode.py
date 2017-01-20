@@ -11,8 +11,8 @@ parser.add_argument('nc', type=str, help='Path to input GCode')
 parser.add_argument('-o', type=str, default=None, help='Path to output GCode')
 parser.add_argument('-x0', type=float, default=0.0, help="New x origin")
 parser.add_argument('-y0', type=float, default=0.0, help="New y origin")
-parser.add_argument('-x', type=float, default=0.0, help="Initial x position")
-parser.add_argument('-y', type=float, default=0.0, help="Initial y origin")
+parser.add_argument('-x', type=float, default=0.0, help="Initial x position (after origin change)")
+parser.add_argument('-y', type=float, default=0.0, help="Initial y origin (after origin change)")
 args = parser.parse_args()
 
 
@@ -23,7 +23,7 @@ def getString(cmd, x, y):
 x = args.x
 y = args.y
 output = ["%\r\n", "G20\r\n"]
-output.append(getString("G92", x, y))
+output.append(getString("G92", x + args.x0, y + args.y0))
 
 # convert file into coordinates
 with open(args.nc, "r") as infile:
