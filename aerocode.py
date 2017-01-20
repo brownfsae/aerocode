@@ -22,7 +22,7 @@ def getString(cmd, x, y):
 # start output stringlist
 x = args.x
 y = args.y
-output = ["%\r\n"]
+output = ["%\r\n", "G20\r\n"]
 output.append(getString("G92", x, y))
 
 # convert file into coordinates
